@@ -3,6 +3,8 @@
 // It reads : 5x sEMG analog value & Battery level
 // It communicates : Bidirectionnaly with Wrist-Slave & Unidirectionnaly with Feedback-Salve, both over i2c
 
+// comment to test github autocommit.
+
 // Library from OYMOTION - EMGFilters
 #include "Arduino.h"
 
@@ -96,7 +98,7 @@ void loop() {
   }
   DataToFdbckSlave[3] = DataToFdbckSlave[3] / ARR_SIZE(FSRVal);
 
-  // - Send commands to Wrist-Slave YO !
+  // - Send commands to Wrist-Slave 
   //   - DataToCtrlSlave[] = { 0, 0 };
   //   - DataToCtrlSlave[0] = 1=FLX / 2=EXT 0=NON
   //   - DataFromMaster[1] = 1=ABD / 2=ADD / 0=NON
