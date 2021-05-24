@@ -38,10 +38,10 @@ int FSRVal[] = {0, 0, 0};
 int FSRerror[] = {0, 0, 0};
 int ErrorItr = 10; // Window size for error average
 int ErrorMrgn = 100; // Arror margin to avoid negative values
-const int ServoMin = 100;
+const int ServoMin = 30;
 const int ServoMax = 150;
 const int ServoStep = 1;
-int ServoVal = 125;
+int ServoVal = 90;
 
 // Declare functions
 void receiveFromMaster(int howMany);
@@ -106,8 +106,9 @@ void loop() {
   FingerControl(DataFromMaster[0]);
   // - Update Wrist Servo
   WristControl(DataFromMaster[1]);
-
-  delay(10); // 100Hz loop
+  WristServo.write(ServoVal);
+  // Serial.println(ServoVal);
+  delay(100); // 100Hz loop
 }
 
 void FingerControl(int cmd) {
@@ -138,14 +139,14 @@ void WristControl(int cmd) {
   else if (cmd == 2) {
     ServoVal -= ServoStep;
   }
-  else { // Do nothing }
-    if ( ServoVal < ServoMin ) {
-      ServoVal = ServoMin;
-    }
-    if ( ServoVal > ServoMax ) {
-      ServoVal = ServoMax;
-    }
-    WristServo.write(ServoVal);
+  else { 
+    // Do nothing 
+  }
+  if ( ServoVal < ServoMin ) {
+    ServoVal = ServoMin;
+  }
+  if ( ServoVal > ServoMax ) {
+    ServoVal = ServoMax;
   }
 }
 
@@ -174,10 +175,10 @@ void receiveFromMaster(int howMany) {
     DataFromMaster[i] = Wire.read();
   }   
 
-  Serial.println("Recieved data :");
-  for (unsigned int j = 0; j < ARR_SIZE(DataFromMaster); j++) {
-    Serial.print(DataFromMaster[j]);
-    Serial.print(" ");
-  }
-  Serial.println("");
+  // Serial.println("Recieved data :");
+  // for (unsigned int j = 0; j < ARR_SIZE(DataFromMaster); j++) {
+  //   Serial.print(DataFromMaster[j]);
+  //   Serial.print(" ");
+  // }
+  // Serial.println("");
 }
