@@ -57,8 +57,8 @@ const int EMGPins[] = { EMG0, EMG1, EMG2, EMG3, EMG4 };
 int LastButtonValue = 0;
 int DataToCtrlSlave[] = { 0, 0 };  // DataToCtrlSlave[0] = 1=FLX / 2=EXT / 0=NON - DataFromMaster[1] = 1=ABD / 2=ADD / 0=NON
 int DataToFdbckSlave[] = { 0, 0, 0, 90 };     // DataToFdbckSlave[0,1,2] = PrxVib,MidVib,DisVib [0:novib - 1:vibrate] / DataToFdbckSlave[3] = Servo angle [0-180]
+int lastVib[] = { 0, 0, 0 }; // Stored FSR values
 int FSRVal[] = { 0, 0, 0 }; // FSR values from 0 to 255
-int lastFSRVal[] = { 0, 0, 0 }; // Stored FSR values
 int FSRthreshold = 25;
 int FdbckServoMin = 10;
 int FdbckServoMax = 170;
@@ -112,8 +112,6 @@ void setup() {
     }
   }
 
-  //Wire.begin(MSaddress_EMG);
-
   // Initialize display
   pinMode(BUTTON_A, INPUT_PULLUP);
   pinMode(BUTTON_B, INPUT_PULLUP);
@@ -127,6 +125,7 @@ void setup() {
   display.println("Loading ...");
   display.display();
 
+  Wire.begin();
   Serial.begin(115200);
 }
 
@@ -327,15 +326,15 @@ void loop() {
           // - Display current gesture on OLED screen
           display.clearDisplay();
           display.setCursor(0, 0);
-          display.println("B : Test AI model");                                                   // LINE 1
+          display.println("B : Test AI model"); // LINE 1
           for (size_t ix = 0; ix < EI_CLASSIFIER_LABEL_COUNT; ix++) { 
             display.print(result.classification[ix].label);
             display.print(": ");
-            display.println(String(static_cast<int>(result.classification[ix].value * 100)));     // LINE 2-3-4-5-6
+            display.println(String(static_cast<int>(result.classification[ix].value * 100))); // LINE 2-3-4-5-6
           }
           int AItime = result.timing.dsp + result.timing.classification + result.timing.anomaly;
           display.print("AI time [ms]: ");
-          display.println(String(AItime));                                                        // LINE 7
+          display.println(String(AItime)); // LINE 7
           display.display();
         }
 
@@ -344,7 +343,8 @@ void loop() {
         //   - DataToCtrlSlave[0] = 1=FLX / 2=EXT 0=NON
         //   - DataFromMaster[1] = 1=ABD / 2=ADD / 0=NON
         Wire.beginTransmission(SLaddress_Ctrl); // transmit to SLAVE
-        for(int i=0; i < ARR_SIZE(DataToCtrlSlave); i++) {
+        // Wire.write((const uint8_t *)DataToCtrlSlave,(int)ARR_SIZE(DataToFdbckSlave));
+        for(unsigned int i=0; i < ARR_SIZE(DataToCtrlSlave); i++) {
           Wire.write(DataToCtrlSlave[i]);  // write command to buffer
         }
         Wire.endTransmission();               // transmit buffer
@@ -362,41 +362,43 @@ void loop() {
         // }
         // SerialToEI.println("");
 
-        // Compute necessary vibrations 
-        for (int i=0; ARR_SIZE(FSRVal); i++) {
-          if ((FSRVal[i] >= FSRthreshold) && (lastFSRVal[i] == 0)) {
+        // Compute necessary vibrations
+        for (unsigned int i = 0; i < ARR_SIZE(FSRVal); i++) {
+          if ((FSRVal[i] >= FSRthreshold) && (lastVib[i] == 0)) {
             DataToFdbckSlave[i] = 1;
           }
-          else if ((FSRVal[i] < FSRthreshold) && (lastFSRVal[i] == 1)) {
+          else if ((FSRVal[i] < FSRthreshold) && (lastVib[i] == 1)) {
             DataToFdbckSlave[i] = 1;
           }
           else {
             DataToFdbckSlave[i] = 0;
           }
+          lastVib[i] = DataToFdbckSlave[i];
         }
 
         // Compute pusher servo value
-        int ContactN = 0;
         DataToFdbckSlave[3] = 0;
-        for (int i=0; ARR_SIZE(FSRVal); i++) {
+        for (unsigned int i = 0; i < ARR_SIZE(FSRVal); i++) {
           if (FSRVal[i] >= FSRthreshold) {
-            ContactN++;
             DataToFdbckSlave[3] += map(FSRVal[i], 0, 255, FdbckServoMin, FdbckServoMax);
           }
           else {
-            DataToFdbckSlave[3] = FdbckServoMin;
+            DataToFdbckSlave[3] += FdbckServoMin;
           }
-          DataToFdbckSlave[3] = DataToFdbckSlave[3] / ContactN;
         }
+        DataToFdbckSlave[3] = DataToFdbckSlave[3] / ARR_SIZE(FSRVal);
 
         // - Send feedback to Feedback_Slave (target 100-1000Hz)
         //   - DataToFdbckSlave[] = {0, 0, 0, 90}; 
         //     - DataToFdbckSlave[0,1,2] = PrxVib,MidVib,DisVib [0:novib - 1:vibrate] 
         //     - DataToFdbckSlave[3] = Servo angle [FdbckServoMin -FdbckServoMax]
         Wire.beginTransmission(SLaddress_Fdbck); // transmit to SLAVE
-        for(int i=0; i < ARR_SIZE(DataToFdbckSlave); i++) {
+        for (unsigned int i = 0; i < ARR_SIZE(DataToFdbckSlave); i++) {
           Wire.write(DataToFdbckSlave[i]);  // write command to buffer
+        //   Serial.print(DataToFdbckSlave[i]);
+        //   Serial.print(" ");
         }
+        // Serial.println("");
         Wire.endTransmission();               // transmit buffer
 
         // calculate loop time

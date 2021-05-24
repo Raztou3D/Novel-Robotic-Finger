@@ -31,13 +31,12 @@ const byte SLaddress_Ctrl = 0x71;
 const byte SLaddress_Fdbck = 0x72;
 const int HapticPins[] = { PrxVib, MidVib, DisVib };
 int DataFromMaster[] = { 0, 0, 0, 90 };  // DataFromMaster[0,1,2] = PrxVib,MidVib,DisVib [0:novib - 1:vibrate] / DataFromMaster[3] = Servo angle [0-180]
-const long VibTime = 100;                // Haptic motos vibration time in milliseconds [ms]
+const long VibTime = 250;                // Haptic motos vibration time in milliseconds [ms]
 long previousMillis[] = { 0, 0, 0 };     // Will store last time Haptic motors were updated, per motor
 int ServoVal = 30;
 
 // Declare fonctions
 void receiveFromMaster(int howMany);
-void WristControl(int cmd);
 
 void setup() {
   pixels.begin();  // initialize the pixel
@@ -71,12 +70,13 @@ void loop() {
   FdbckServo.write(DataFromMaster[3]);
   delay(100);
   
-  // Serial.println("SAMD21 - Loop");
-  // for (unsigned int j = 0; j < ARR_SIZE(DataFromMaster); j++) {
-  //   Serial.print(DataFromMaster[j]);
-  //   Serial.print(" ");
-  // }
-  // Serial.println("");
+  Serial.println("SAMD21 - Loop");
+  for (unsigned int j = 0; j < ARR_SIZE(DataFromMaster); j++) {
+    Serial.print(DataFromMaster[j]);
+    Serial.print(" ");
+  }
+  Serial.println("");
+
   pixels.begin();  // initialize the pixel
   pixels.setPixelColor(0, pixels.Color(0, 0, 10));
   pixels.show();
@@ -85,18 +85,9 @@ void loop() {
 // function that executes whenever data is received from master
 void receiveFromMaster(int howMany) {
   // DataFromMaster[0,1,2] = PrxVib,MidVib,DisVib [0:novib - 1:vibrate] / DataFromMaster[3] = Servo angle [0-180]
-  int i = 0;
-  while (Wire.available()) {
+  for (int i=0 ; i<howMany ; i++) {
     DataFromMaster[i] = Wire.read();
-    i++;
-  }
-  // Serial.println("Recieved data :");
-  // for (unsigned int j = 0; j < ARR_SIZE(DataFromMaster); j++) {
-  //   Serial.print(DataFromMaster[j]);
-  //   Serial.print(" ");
-  // }
-  // Serial.println("");
-   
+  }   
   pixels.begin();  // initialize the pixel
   pixels.setPixelColor(0, pixels.Color(10, 0, 0));
   pixels.show();

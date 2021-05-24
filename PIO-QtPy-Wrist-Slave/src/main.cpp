@@ -36,7 +36,7 @@ int DataFromMaster[] = { 0, 0 };  // DataFromMaster[0] = 1=FLX / 2=EXT / 0=NON -
 const int FSRpins[] = {PrxFSR, MidFSR, DisFSR};
 int FSRVal[] = {0, 0, 0};
 int FSRerror[] = {0, 0, 0};
-int ErrorItr = 5; // Window size for error average
+int ErrorItr = 10; // Window size for error average
 int ErrorMrgn = 100; // Arror margin to avoid negative values
 const int ServoMin = 100;
 const int ServoMax = 150;
@@ -51,7 +51,7 @@ void FingerControl(int cmd);
 
 void setup() {
   pixels.begin();  // initialize the pixel
-  pixels.setPixelColor(0, pixels.Color(0, 36, 4));
+  pixels.setPixelColor(0, pixels.Color(0, 10, 0));
   pixels.show();
 
   analogReadResolution(12);
@@ -59,15 +59,16 @@ void setup() {
   pinMode(MotCCW, OUTPUT);
   digitalWrite(MotCW, LOW);
   digitalWrite(MotCCW, LOW);
+
   WristServo.attach(WristSERVO);
 
   // FSR callibration with mean of first "ErrorItr" values
-  for (int i = 0; i < ARR_SIZE(FSRpins); i++) {
+  for (unsigned int i = 0; i < ARR_SIZE(FSRpins); i++) {
     for (int j = 0; j < ErrorItr; j++) {
       FSRerror[i] += analogRead(FSRpins[i]);
       delay(2);
     }
-    FSRerror[i] = (FSRerror[i] / ErrorItr) + ErrorMrgn;
+    FSRerror[i] = (FSRerror[i] / ErrorItr) - ErrorMrgn;
   }
 
   Wire.begin(SLaddress_Ctrl);
@@ -77,15 +78,36 @@ void setup() {
 }
 
 void loop() {
+  pixels.begin();  // initialize the pixel
+  pixels.setPixelColor(0, pixels.Color(0, 10, 0));
+  pixels.show();
+
+  // Serial.print("FSRError : ");
+  // for (unsigned int i = 0; i < ARR_SIZE(FSRpins); i++) {
+  //   Serial.print(FSRerror[i]);
+  //   Serial.print(" ");
+  // }
+  // Serial.println("");
+
   // - Update FSR values
-  for (int i = 0; i < ARR_SIZE(FSRpins); i++) {
+  for (unsigned int i = 0; i < ARR_SIZE(FSRpins); i++) {
     FSRVal[i] = analogRead(FSRpins[i]) - FSRerror[i];
   }
+
+  // Serial.print("FSRVal : ");
+  // for (unsigned int i = 0; i < ARR_SIZE(FSRpins); i++) {
+  //   Serial.print(FSRVal[i]);
+  //   Serial.print(" ");
+  // }
+  // Serial.println("");
+
+
   // - Update Finger motor
   FingerControl(DataFromMaster[0]);
   // - Update Wrist Servo
   WristControl(DataFromMaster[1]);
-  delay(10);
+
+  delay(10); // 100Hz loop
 }
 
 void FingerControl(int cmd) {
@@ -129,24 +151,31 @@ void WristControl(int cmd) {
 
 void requestToMaster()
 {
+  pixels.begin();  // initialize the pixel
+  pixels.setPixelColor(0, pixels.Color(0, 0, 10));
+  pixels.show();
+
   // Send 3x FSR analog values
   int tmpFSRVal[ARR_SIZE(FSRVal)];
-  for (int i = 0; i < ARR_SIZE(FSRVal); i++) {
+  for (unsigned int i = 0; i < ARR_SIZE(FSRVal); i++) {
     tmpFSRVal[i] = map(FSRVal[i], 0, 4095, 0, 255);
+    Wire.write(tmpFSRVal[i]);
   }
-  Wire.write(tmpFSRVal, ARR_SIZE(tmpFSRVal));
 }
 
 // function that executes whenever data is received from master
 void receiveFromMaster(int howMany) {
+  pixels.begin();  // initialize the pixel
+  pixels.setPixelColor(0, pixels.Color(10, 0, 0));
+  pixels.show();
+
   // DataFromMaster[0] = 1=FLX / 2=EXT / 0=NON - DataFromMaster[1] = 1=ABD / 2=ADD / 0=NON
-  int i = 0;
-  while (Wire.available()) {
+   for (int i=0 ; i<howMany ; i++) {
     DataFromMaster[i] = Wire.read();
-    i++;
-  }
+  }   
+
   Serial.println("Recieved data :");
-  for (int j = 0; j < ARR_SIZE(DataFromMaster); j++) {
+  for (unsigned int j = 0; j < ARR_SIZE(DataFromMaster); j++) {
     Serial.print(DataFromMaster[j]);
     Serial.print(" ");
   }

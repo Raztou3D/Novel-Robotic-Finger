@@ -102,39 +102,41 @@ void loop() {
   //   - DataToCtrlSlave[] = { 0, 0 };
   //   - DataToCtrlSlave[0] = 1=FLX / 2=EXT 0=NON
   //   - DataFromMaster[1] = 1=ABD / 2=ADD / 0=NON
-  // Wire.beginTransmission(SLaddress_Ctrl); // transmit to SLAVE
-  // for (int i = 0; i < ARR_SIZE(DataToCtrlSlave); i++) {
-  //   Wire.write(DataToCtrlSlave[i]);  // write command to buffer
-  // }
-  // Wire.endTransmission();               // transmit buffer
+  // Serial.println("Sending data from to wrist slave :");
+  Wire.beginTransmission(SLaddress_Ctrl); // transmit to SLAVE
+  for (unsigned int i = 0; i < ARR_SIZE(DataToCtrlSlave); i++) {
+    Wire.write(DataToCtrlSlave[i]);  // write command to buffer
+  }
+  Wire.endTransmission();               // transmit buffer
 
   // - Request 3x FSR values from Wrist-Slave (target 100-1000Hz)
   //   - [4095,4095,4095] (Prx,Mid,Dist analog reads)
-  // Wire.requestFrom(SLaddress_Ctrl, ARR_SIZE(FSRVal));    // request 3x FSR values from CTRL Slave
-  // for (int i = 0; i < ARR_SIZE(FSRVal); i++) {
-  //   FSRVal[i] = Wire.read();
+  Wire.requestFrom(SLaddress_Ctrl, ARR_SIZE(FSRVal));    // request 3x FSR values from CTRL Slave
+  for (unsigned int i = 0; i < ARR_SIZE(FSRVal); i++) {
+    FSRVal[i] = Wire.read();
+  }
+  // Serial.println("Recieved data from wirst slave :");
+  // for (unsigned int j = 0; j < ARR_SIZE(FSRVal); j++) {
+  //   Serial.print(FSRVal[j]);
+  //   Serial.print(" ");
   // }
-  // SerialToEI.println("Recieved data from wirst slave :");
-  // for (int j = 0; j < ARR_SIZE(FSRVal); j++) {
-  //   SerialToEI.print(FSRVal[j]);
-  //   SerialToEI.print(" ");
-  // }
-  // SerialToEI.println("");
+  // Serial.println("");
 
   // - Send feedback to Feedback_Slave (target 100-1000Hz)
   //   - DataToFdbckSlave[] = {0, 0, 0, 90};
   //     - DataToFdbckSlave[0,1,2] = PrxVib,MidVib,DisVib [0:novib - 1:vibrate]
   //     - DataToFdbckSlave[3] = Servo angle [FdbckServoMin -FdbckServoMax]
+  // Serial.println("Sending to Feedback Slave ...");
   Wire.beginTransmission(SLaddress_Fdbck); // transmit to SLAVE
-  Serial.println("Sending to Feedback Slave ...");
+  // Wire.write((const uint8_t *)DataToFdbckSlave,(int)ARR_SIZE(DataToFdbckSlave));
   for (unsigned int i = 0; i < ARR_SIZE(DataToFdbckSlave); i++) {
     Wire.write(DataToFdbckSlave[i]);  // write command to buffer
-    Serial.print(DataToFdbckSlave[i]);
-    Serial.print(" ");
+    // Serial.print(DataToFdbckSlave[i]);
+    // Serial.print(" ");
   }
-  Serial.println("");
-  Wire.endTransmission();               // transmit buffer
-  Serial.println("Sent to Feedback Slave.");
+  // Serial.println("");
+  Wire.endTransmission();  // transmit buffer
+  // Serial.println("Sent to Feedback Slave.");
 
   delay(100);
 }
