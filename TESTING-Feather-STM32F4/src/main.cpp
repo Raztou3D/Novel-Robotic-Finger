@@ -23,10 +23,10 @@ const byte SLaddress_Ctrl = 0x71;
 const byte SLaddress_Fdbck = 0x72;
 int LastButtonValue = 0;
 int DataToCtrlSlave[] = { 0, 0 };  // DataToCtrlSlave[0] = 1=FLX / 2=EXT / 0=NON - DataFromMaster[1] = 1=ABD / 2=ADD / 0=NON
-int DataToFdbckSlave[] = { 0, 0, 0, 90 };     // DataToFdbckSlave[0,1,2] = PrxVib,MidVib,DisVib [0:novib - 1:vibrate] / DataToFdbckSlave[3] = Servo angle [0-180]
-int lastVib[] = { 0, 0, 0 }; // Stored FSR values
+int DataToFdbckSlave[] = { 0, 0, 0, 0 };     // DataToFdbckSlave[0,1,2] = PrxVib,MidVib,DisVib [0:novib - 1:vibrate] / DataToFdbckSlave[3] = Servo angle [0-180]
 int FSRVal[] = { 0, 0, 0 }; // FSR values from 0 to 255
-int FSRthreshold = 25;
+int lastFSRVal[] = { 0, 0, 0 }; // Stored FSR values
+int FSRthreshold = 20;
 int FdbckServoMin = 10;
 int FdbckServoMax = 170;
 
@@ -55,7 +55,7 @@ void loop() {
   }
   if (!digitalRead(BUTTON_B)) {
     LastButtonValue = 2;
-    FSRVal[0] = 200;
+    FSRVal[0] = 500;
     FSRVal[1] = 0;
     FSRVal[2] = 0;
     DataToCtrlSlave[0] = 1;
@@ -64,26 +64,26 @@ void loop() {
   }
   if (!digitalRead(BUTTON_C)) {
     LastButtonValue = 3;
-    FSRVal[0] = 200;
+    FSRVal[0] = 500;
     FSRVal[1] = 200;
-    FSRVal[2] = 0;
-    DataToCtrlSlave[0] = 0;
-    DataToCtrlSlave[1] = 1;
+    FSRVal[2] = 100;
+    DataToCtrlSlave[0] = 2;
+    DataToCtrlSlave[1] = 0;
     Serial.println("Button C pressed.");
   }
 
   // Compute necessary vibrations
   for (unsigned int i = 0; i < ARR_SIZE(FSRVal); i++) {
-    if ((FSRVal[i] >= FSRthreshold) && (lastVib[i] == 0)) {
+    if ((FSRVal[i] >= FSRthreshold) && (lastFSRVal[i] < FSRthreshold)) {
       DataToFdbckSlave[i] = 1;
     }
-    else if ((FSRVal[i] < FSRthreshold) && (lastVib[i] == 1)) {
+    else if ((FSRVal[i] < FSRthreshold) && (lastFSRVal[i] >= FSRthreshold)) {
       DataToFdbckSlave[i] = 1;
     }
     else {
       DataToFdbckSlave[i] = 0;
     }
-    lastVib[i] = DataToFdbckSlave[i];
+    lastFSRVal[i] = FSRVal[i];
   }
 
   // Compute pusher servo value
@@ -102,7 +102,7 @@ void loop() {
   //   - DataToCtrlSlave[] = { 0, 0 };
   //   - DataToCtrlSlave[0] = 1=FLX / 2=EXT 0=NON
   //   - DataFromMaster[1] = 1=ABD / 2=ADD / 0=NON
-  // Serial.println("Sending data from to wrist slave :");
+  Serial.println("Sending data from to wrist slave :");
   Wire.beginTransmission(SLaddress_Ctrl); // transmit to SLAVE
   for (unsigned int i = 0; i < ARR_SIZE(DataToCtrlSlave); i++) {
     Wire.write(DataToCtrlSlave[i]);  // write command to buffer
@@ -115,28 +115,36 @@ void loop() {
   for (unsigned int i = 0; i < ARR_SIZE(FSRVal); i++) {
     FSRVal[i] = Wire.read();
   }
-  // Serial.println("Recieved data from wirst slave :");
-  // for (unsigned int j = 0; j < ARR_SIZE(FSRVal); j++) {
-  //   Serial.print(FSRVal[j]);
-  //   Serial.print(" ");
-  // }
-  // Serial.println("");
+  Serial.println("Recieved data from wirst slave :");
+  for (unsigned int j = 0; j < ARR_SIZE(FSRVal); j++) {
+    Serial.print(FSRVal[j]);
+    Serial.print(" ");
+  }
+  Serial.println("");
+
+  Serial.println("FSRVal : ");
+
+  for (unsigned int i = 0; i < ARR_SIZE(FSRVal); i++) {
+    Serial.print(FSRVal[i]);
+    Serial.print(" ");
+  }
+  Serial.println("");
 
   // - Send feedback to Feedback_Slave (target 100-1000Hz)
   //   - DataToFdbckSlave[] = {0, 0, 0, 90};
   //     - DataToFdbckSlave[0,1,2] = PrxVib,MidVib,DisVib [0:novib - 1:vibrate]
   //     - DataToFdbckSlave[3] = Servo angle [FdbckServoMin -FdbckServoMax]
-  // Serial.println("Sending to Feedback Slave ...");
+  Serial.println("Sending to Feedback Slave ...");
   Wire.beginTransmission(SLaddress_Fdbck); // transmit to SLAVE
   // Wire.write((const uint8_t *)DataToFdbckSlave,(int)ARR_SIZE(DataToFdbckSlave));
   for (unsigned int i = 0; i < ARR_SIZE(DataToFdbckSlave); i++) {
     Wire.write(DataToFdbckSlave[i]);  // write command to buffer
-    // Serial.print(DataToFdbckSlave[i]);
-    // Serial.print(" ");
+    Serial.print(DataToFdbckSlave[i]);
+    Serial.print(" ");
   }
-  // Serial.println("");
+  Serial.println("");
   Wire.endTransmission();  // transmit buffer
-  // Serial.println("Sent to Feedback Slave.");
+  Serial.println("Sent to Feedback Slave.");
 
   delay(100);
 }

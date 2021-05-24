@@ -56,10 +56,10 @@ const byte SLaddress_Fdbck = 0x72;
 const int EMGPins[] = { EMG0, EMG1, EMG2, EMG3, EMG4 };
 int LastButtonValue = 0;
 int DataToCtrlSlave[] = { 0, 0 };  // DataToCtrlSlave[0] = 1=FLX / 2=EXT / 0=NON - DataFromMaster[1] = 1=ABD / 2=ADD / 0=NON
-int DataToFdbckSlave[] = { 0, 0, 0, 90 };     // DataToFdbckSlave[0,1,2] = PrxVib,MidVib,DisVib [0:novib - 1:vibrate] / DataToFdbckSlave[3] = Servo angle [0-180]
-int lastVib[] = { 0, 0, 0 }; // Stored FSR values
+int DataToFdbckSlave[] = { 0, 0, 0, 0 };     // DataToFdbckSlave[0,1,2] = PrxVib,MidVib,DisVib [0:novib - 1:vibrate] / DataToFdbckSlave[3] = Servo angle [0-180]
 int FSRVal[] = { 0, 0, 0 }; // FSR values from 0 to 255
-int FSRthreshold = 25;
+int lastFSRVal[] = { 0, 0, 0 }; // Stored FSR values
+int FSRthreshold = 20;
 int FdbckServoMin = 10;
 int FdbckServoMax = 170;
 unsigned long start_interval_ms = 0;
@@ -101,13 +101,13 @@ void setup() {
   pixels.show();
 
   // EMGFilter initialization
-  for (int i = 0; i < ARR_SIZE(EMGPins); i++) {
+  for (unsigned int i = 0; i < ARR_SIZE(EMGPins); i++) {
     myFilter[i].init(sampleRate, humFreq, true, true, true);
 
     rectifiedAcBuf[i].sum = 0;
     rectifiedAcBuf[i].index = 0;
 
-    for (int j = 0; j < ARR_SIZE(rectifiedAcBuf[i].buf); j++) {
+    for (unsigned int j = 0; j < ARR_SIZE(rectifiedAcBuf[i].buf); j++) {
       rectifiedAcBuf[i].buf[j] = 0;
     }
   }
@@ -167,11 +167,9 @@ void loop() {
         static unsigned long last_interval_ms = 0;
         if (millis() > last_interval_ms + INTERVAL_MS) {
           last_interval_ms = millis();
-          // Note: `micros()` will overflow and reset every about 70 minutes.
-          unsigned long long timeStamp = micros();
           // Filter processing
           int data = 0, dataAfterFilter = 0;
-          for (int i = 0; i < ARR_SIZE(EMGPins); i++) {
+          for (unsigned int i = 0; i < ARR_SIZE(EMGPins); i++) {
             data = analogRead(EMGPins[i]);
             dataAfterFilter = myFilter[i].update(data);
             // Rectification
@@ -197,7 +195,7 @@ void loop() {
 
           // Filter processing
           int data = 0, dataAfterFilter = 0;
-          for (int i = 0; i < ARR_SIZE(EMGPins); i++) {
+          for (unsigned int i = 0; i < ARR_SIZE(EMGPins); i++) {
             data = analogRead(EMGPins[i]);
             dataAfterFilter = myFilter[i].update(data);
             // Rectification
@@ -265,7 +263,7 @@ void loop() {
 
           // Filter processing
           int data = 0, dataAfterFilter = 0;
-          for (int i = 0; i < ARR_SIZE(EMGPins); i++) {
+          for (unsigned int i = 0; i < ARR_SIZE(EMGPins); i++) {
             data = analogRead(EMGPins[i]);
             dataAfterFilter = myFilter[i].update(data);
             // Rectification
@@ -342,38 +340,31 @@ void loop() {
         //   - DataToCtrlSlave[] = { 0, 0 };  
         //   - DataToCtrlSlave[0] = 1=FLX / 2=EXT 0=NON
         //   - DataFromMaster[1] = 1=ABD / 2=ADD / 0=NON
-        Wire.beginTransmission(SLaddress_Ctrl); // transmit to SLAVE
-        // Wire.write((const uint8_t *)DataToCtrlSlave,(int)ARR_SIZE(DataToFdbckSlave));
+        Wire.beginTransmission(SLaddress_Ctrl);
         for(unsigned int i=0; i < ARR_SIZE(DataToCtrlSlave); i++) {
-          Wire.write(DataToCtrlSlave[i]);  // write command to buffer
+          Wire.write(DataToCtrlSlave[i]);
         }
-        Wire.endTransmission();               // transmit buffer
+        Wire.endTransmission();
 
         // - Request 3x FSR values from Wrist-Slave (target 100-1000Hz)
         //   - [4095,4095,4095] (Prx,Mid,Dist analog reads)
-        Wire.requestFrom(SLaddress_Ctrl, ARR_SIZE(FSRVal));    // request 3x FSR values from CTRL Slave
-        for (int i = 0; i < ARR_SIZE(FSRVal); i++) {
+        Wire.requestFrom(SLaddress_Ctrl, ARR_SIZE(FSRVal));
+        for (unsigned int i = 0; i < ARR_SIZE(FSRVal); i++) {
           FSRVal[i] = Wire.read();
         }
-        // SerialToEI.println("Recieved data from wirst slave :");
-        // for (int j = 0; j < ARR_SIZE(FSRVal); j++) {
-        //   SerialToEI.print(FSRVal[j]);
-        //   SerialToEI.print(" ");
-        // }
-        // SerialToEI.println("");
 
         // Compute necessary vibrations
         for (unsigned int i = 0; i < ARR_SIZE(FSRVal); i++) {
-          if ((FSRVal[i] >= FSRthreshold) && (lastVib[i] == 0)) {
+          if ((FSRVal[i] >= FSRthreshold) && (lastFSRVal[i] < FSRthreshold)) {
             DataToFdbckSlave[i] = 1;
           }
-          else if ((FSRVal[i] < FSRthreshold) && (lastVib[i] == 1)) {
+          else if ((FSRVal[i] < FSRthreshold) && (lastFSRVal[i] >= FSRthreshold)) {
             DataToFdbckSlave[i] = 1;
           }
           else {
             DataToFdbckSlave[i] = 0;
           }
-          lastVib[i] = DataToFdbckSlave[i];
+          lastFSRVal[i] = FSRVal[i];
         }
 
         // Compute pusher servo value
@@ -392,17 +383,16 @@ void loop() {
         //   - DataToFdbckSlave[] = {0, 0, 0, 90}; 
         //     - DataToFdbckSlave[0,1,2] = PrxVib,MidVib,DisVib [0:novib - 1:vibrate] 
         //     - DataToFdbckSlave[3] = Servo angle [FdbckServoMin -FdbckServoMax]
-        Wire.beginTransmission(SLaddress_Fdbck); // transmit to SLAVE
+        Wire.beginTransmission(SLaddress_Fdbck);
         for (unsigned int i = 0; i < ARR_SIZE(DataToFdbckSlave); i++) {
-          Wire.write(DataToFdbckSlave[i]);  // write command to buffer
-        //   Serial.print(DataToFdbckSlave[i]);
-        //   Serial.print(" ");
+          Wire.write(DataToFdbckSlave[i]);
         }
-        // Serial.println("");
-        Wire.endTransmission();               // transmit buffer
+        Wire.endTransmission();
 
         // calculate loop time
-        if(start_interval_ms != 0) { unsigned long interval_ms = start_interval_ms - millis(); }
+        if(start_interval_ms != 0) { 
+          unsigned long interval_ms = start_interval_ms - millis(); 
+        }
           
         // Start timer for loop time
         unsigned long start_interval_ms = millis();
@@ -425,7 +415,7 @@ void loop() {
         display.println("");
         display.println("");
         display.println("");
-        display.println("by Reza SN");
+        display.println("by Reza Safai-Naeeni");
         display.display();
       }
       break;
