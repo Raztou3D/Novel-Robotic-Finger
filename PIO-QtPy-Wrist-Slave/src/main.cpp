@@ -142,12 +142,7 @@ void WristControl(int cmd) {
   else { 
     // Do nothing 
   }
-  if ( ServoVal < ServoMin ) {
-    ServoVal = ServoMin;
-  }
-  if ( ServoVal > ServoMax ) {
-    ServoVal = ServoMax;
-  }
+  ServoVal = constrain(ServoVal, ServoMin, ServoMax);  // limits range of motion
 }
 
 void requestToMaster()
