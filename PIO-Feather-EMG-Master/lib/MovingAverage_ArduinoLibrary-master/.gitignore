@@ -1,0 +1,5 @@
+# Visual Studio project configurations
+.vscode
+
+# Compilation output
+out

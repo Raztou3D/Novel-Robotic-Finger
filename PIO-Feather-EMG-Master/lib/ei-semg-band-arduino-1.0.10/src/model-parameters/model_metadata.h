@@ -44,7 +44,7 @@
 #define EI_CLASSIFIER_PROJECT_ID                 28992
 #define EI_CLASSIFIER_PROJECT_OWNER              "Raztou3D"
 #define EI_CLASSIFIER_PROJECT_NAME               "sEMG-Band"
-#define EI_CLASSIFIER_PROJECT_DEPLOY_VERSION     8
+#define EI_CLASSIFIER_PROJECT_DEPLOY_VERSION     10
 #define EI_CLASSIFIER_NN_INPUT_FRAME_SIZE        600
 #define EI_CLASSIFIER_RAW_SAMPLE_COUNT           120
 #define EI_CLASSIFIER_RAW_SAMPLES_PER_FRAME      5
@@ -61,7 +61,7 @@
 #define EI_CLASSIFIER_OBJECT_DETECTION           0
 
 
-#define EI_CLASSIFIER_TFLITE_ARENA_SIZE          20480
+#define EI_CLASSIFIER_TFLITE_ARENA_SIZE          6188
 #define EI_CLASSIFIER_TFLITE_INPUT_DATATYPE      EI_CLASSIFIER_DATATYPE_FLOAT32
 #define EI_CLASSIFIER_TFLITE_INPUT_QUANTIZED     0
 #define EI_CLASSIFIER_TFLITE_INPUT_SCALE         0
@@ -90,7 +90,7 @@
 #endif
 #endif // EI_CLASSIFIER_INFERENCING_ENGINE == EI_CLASSIFIER_TFLITE && EI_CLASSIFIER_USE_FULL_TFLITE == 1
 
-const char* ei_classifier_inferencing_categories[] = { "ALOA", "FIST", "PALM", "REST", "TWOF" };
+const char* ei_classifier_inferencing_categories[] = { "FIST", "PALM", "REST", "THRF", "TWOF" };
 
 typedef struct {
     uint16_t implementation_version;

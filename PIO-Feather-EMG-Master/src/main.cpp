@@ -36,6 +36,11 @@ size_t feature_ix = 0;
 #include <Adafruit_SH110X.h>
 Adafruit_SH110X display = Adafruit_SH110X(64, 128, &Wire);
 
+// Library to quickly get running averages
+#include <MovingAverage.h>
+// Create an Arithmetic Moving Average object of unsigned int type (SIZE, VALUE)
+MovingAverage<unsigned> MovAverage(5, 0);
+
 // Initialize pins
 #define EMG0 A1  // DFRobot Gravity EMG sensor analog value
 #define EMG1 A2
@@ -64,6 +69,9 @@ int FdbckServoMin = 10;
 int FdbckServoMax = 170;
 unsigned long start_interval_ms = 0;
 unsigned long interval_ms = 0;
+unsigned int ix_max = 0; 
+unsigned int ix_average = 0;
+int arr_max = 0; 
 
 // Initialize EMG Filter functions
 #define ARR_SIZE(a) (sizeof(a) / sizeof(a[0]))
@@ -99,6 +107,8 @@ void setup() {
   pixels.begin();  // initialize the pixel
   pixels.setPixelColor(0, pixels.Color(4, 36, 4));
   pixels.show();
+
+  start_interval_ms = millis();
 
   // EMGFilter initialization
   for (unsigned int i = 0; i < ARR_SIZE(EMGPins); i++) {
@@ -300,23 +310,40 @@ void loop() {
           #endif
 
           // Find highest probabilitiy gesture in predictions
-          unsigned ix_max=0; 
-          unsigned arr_max=0; 
+          ix_max=0; 
+          arr_max=0; 
           for (size_t ix = 0; ix < EI_CLASSIFIER_LABEL_COUNT; ix++) {
-            if (static_cast<int>(result.classification[ix].value > arr_max)) {
+            if (static_cast<int>(result.classification[ix].value * 100) > arr_max) {
               arr_max = static_cast<int>(result.classification[ix].value);
               ix_max = ix;
             }
           }
+          MovAverage.push(ix_max);
+          ix_average = MovAverage.get();
 
           // DataToCtrlSlave[] = { 0, 0 };  
           // - DataToCtrlSlave[0] = 1=FLX / 2=EXT 0=NON
           // - DataFromMaster[1] = 1=ABD / 2=ADD / 0=NON
-          if(result.classification[ix_max].label == "FIST"){ DataToCtrlSlave[0] = 1; DataToCtrlSlave[1] = 0; } // FLX
-          if(result.classification[ix_max].label == "PALM"){ DataToCtrlSlave[0] = 2; DataToCtrlSlave[1] = 0; } // EXT
-          if(result.classification[ix_max].label == "TWOF"){ DataToCtrlSlave[0] = 0; DataToCtrlSlave[1] = 1; } // ABD
-          if(result.classification[ix_max].label == "THRF"){ DataToCtrlSlave[0] = 0; DataToCtrlSlave[1] = 2; } // ADD
-          else { DataToCtrlSlave[0] = 0; DataToCtrlSlave[1] = 0; } // NON
+          if(ix_average == 0){ 
+            DataToCtrlSlave[0] = 1; 
+            DataToCtrlSlave[1] = 0; 
+            } // FLX - FIST
+          else if(ix_average == 1){ 
+            DataToCtrlSlave[0] = 2; 
+            DataToCtrlSlave[1] = 0; 
+            } // EXT - PALM
+          else if(ix_average == 4){ 
+            DataToCtrlSlave[0] = 0; 
+            DataToCtrlSlave[1] = 1; 
+            } // ABD - TWOF
+          else if(ix_average == 3){ 
+            DataToCtrlSlave[0] = 0; 
+            DataToCtrlSlave[1] = 2; 
+            } // ADD - THRF
+          else { 
+            DataToCtrlSlave[0] = 0; 
+            DataToCtrlSlave[1] = 0; 
+            } // NON - REST, ...
 
           // reset features frame
           feature_ix = 0;
@@ -324,7 +351,7 @@ void loop() {
           // - Display current gesture on OLED screen
           display.clearDisplay();
           display.setCursor(0, 0);
-          display.println("B : Test AI model"); // LINE 1
+          display.println("C : Running program"); // LINE 1
           for (size_t ix = 0; ix < EI_CLASSIFIER_LABEL_COUNT; ix++) { 
             display.print(result.classification[ix].label);
             display.print(": ");
@@ -333,7 +360,7 @@ void loop() {
           int AItime = result.timing.dsp + result.timing.classification + result.timing.anomaly;
           display.print("AI time [ms]: ");
           display.println(String(AItime)); // LINE 7
-          display.display();
+          // display.display();
         }
 
         // - Send commands to Wrist-Slave
@@ -390,16 +417,20 @@ void loop() {
         Wire.endTransmission();
 
         // calculate loop time
-        if(start_interval_ms != 0) { 
-          unsigned long interval_ms = start_interval_ms - millis(); 
-        }
+        interval_ms = start_interval_ms - millis();
           
         // Start timer for loop time
-        unsigned long start_interval_ms = millis();
-
+        start_interval_ms = millis();
+        
+        // display.print("DataToCtrlSlave: ");
+        // display.print(DataToCtrlSlave[0]);
+        // display.print(" ");
+        // display.println(DataToCtrlSlave[1]);
+        display.print("ix_average: ");
+        display.println(ix_average);
         // display loop time
-        display.print("Loop time : ");                        
-        display.println(String(interval_ms));  // LINE 8
+        // display.print("Loop time : ");                        
+        // display.println(String(interval_ms));  // LINE 8
         display.display();
       }
       break;
