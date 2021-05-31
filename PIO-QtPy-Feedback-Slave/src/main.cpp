@@ -30,7 +30,7 @@ const byte MSaddress_EMG = 0x70;
 const byte SLaddress_Ctrl = 0x71;
 const byte SLaddress_Fdbck = 0x72;
 const int HapticPins[] = { PrxVib, MidVib, DisVib };
-int DataFromMaster[] = { 0, 0, 0, 0 };  // DataFromMaster[0,1,2] = PrxVib,MidVib,DisVib [0:novib - 1:vibrate] / DataFromMaster[3] = Servo angle [0-180]
+int DataFromMaster[] = { 0, 0, 0, 0 };  // DataFromMaster[0,1,2] = PrxVib,MidVib,DisVib [0:novib - 1:vibrate-made-contact - 2:vibrate-lost-contact]  / DataFromMaster[3] = Servo angle [0-180]
 const long VibTime = 250;                // Haptic motos vibration time in milliseconds [ms]
 long previousMillis[] = { 0, 0, 0 };     // Will store last time Haptic motors were updated, per motor
 int ServoVal = 30;
@@ -64,12 +64,16 @@ void loop() {
   // - Update Haptic motors
   for (unsigned int i = 0; i < ARR_SIZE(HapticPins); i++) {
     unsigned long currentMillis = millis();
-    unsigned long delta = currentMillis - previousMillis[i];
+    long delta = currentMillis - previousMillis[i];
     if (delta >= VibTime) {
       analogWrite(HapticPins[i], 0);
     }
     if (DataFromMaster[i] == 1) {
       previousMillis[i] = currentMillis;
+      analogWrite(HapticPins[i], 255);
+    }
+    if (DataFromMaster[i] == 2) {
+      previousMillis[i] == currentMillis + VibTime;
       analogWrite(HapticPins[i], 255);
     }
   }

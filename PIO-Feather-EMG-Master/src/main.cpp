@@ -40,6 +40,8 @@ Adafruit_SH110X display = Adafruit_SH110X(64, 128, &Wire);
 #include <MovingAverage.h>
 // Create an Arithmetic Moving Average object of unsigned int type (SIZE, VALUE)
 MovingAverage<unsigned> MovAverage(5, 0);
+// Create an Arithmetic Moving Average object of unsigned int type (SIZE, VALUE)
+MovingAverage<unsigned> ServoAverage(5, 0);
 
 // Initialize pins
 #define EMG0 A1  // DFRobot Gravity EMG sensor analog value
@@ -61,12 +63,13 @@ const byte SLaddress_Fdbck = 0x72;
 const int EMGPins[] = { EMG0, EMG1, EMG2, EMG3, EMG4 };
 int LastButtonValue = 0;
 int DataToCtrlSlave[] = { 0, 0 };  // DataToCtrlSlave[0] = 1=FLX / 2=EXT / 0=NON - DataFromMaster[1] = 1=ABD / 2=ADD / 0=NON
-int DataToFdbckSlave[] = { 0, 0, 0, 0 };     // DataToFdbckSlave[0,1,2] = PrxVib,MidVib,DisVib [0:novib - 1:vibrate] / DataToFdbckSlave[3] = Servo angle [0-180]
+int DataToFdbckSlave[] = { 0, 0, 0, 0 };     // DataToFdbckSlave[0,1,2] = PrxVib,MidVib,DisVib [0:novib - 1:vibrate-made-contact - 2:vibrate-lost-contact]  / DataToFdbckSlave[3] = Servo angle [0-180]
 int FSRVal[] = { 0, 0, 0 }; // FSR values from 0 to 255
 int lastFSRVal[] = { 0, 0, 0 }; // Stored FSR values
 int FSRthreshold = 20;
 int FdbckServoMin = 10;
 int FdbckServoMax = 170;
+unsigned int FdbckServoAverage = 0;
 unsigned long start_interval_ms = 0;
 unsigned long interval_ms = 0;
 unsigned int ix_max = 0; 
@@ -164,7 +167,14 @@ void loop() {
     // Reset screen
     display.clearDisplay();
     display.setCursor(0, 0);
-    display.println("C : Start prog.");
+    display.println("C : Start Programm");
+    display.println("Thumb-Xtra v1.0");
+    display.println("");
+    display.println("");
+    display.println("");
+    display.println("");
+    display.println("");
+    display.println("by Reza Safai-Naeeni");
     display.display();
   }
 
@@ -264,6 +274,7 @@ void loop() {
       break;
     case 3:
       {
+        Serial.println("=======================================");
         // - Get EMG values
         // - Filter EMG values
         // - Detect current gesture from EMG signal
@@ -318,49 +329,48 @@ void loop() {
               ix_max = ix;
             }
           }
-          MovAverage.push(ix_max);
+          MovAverage.push(ix_max); // Averge computed value over servêral iterations
           ix_average = MovAverage.get();
 
           // DataToCtrlSlave[] = { 0, 0 };  
           // - DataToCtrlSlave[0] = 1=FLX / 2=EXT 0=NON
           // - DataFromMaster[1] = 1=ABD / 2=ADD / 0=NON
-          if(ix_average == 0){ 
+          // WARNING : Index depends on gesture's labels. They are ordered alphabetically. 
+          // - So change in label names will need to be reflected here below !
+          if(ix_average == 0){ // FLX - FIST
             DataToCtrlSlave[0] = 1; 
             DataToCtrlSlave[1] = 0; 
-            } // FLX - FIST
-          else if(ix_average == 1){ 
+            } 
+          else if(ix_average == 1){ // EXT - PALM
             DataToCtrlSlave[0] = 2; 
             DataToCtrlSlave[1] = 0; 
-            } // EXT - PALM
-          else if(ix_average == 4){ 
+            } 
+          else if(ix_average == 4){ // ABD - TWOF
             DataToCtrlSlave[0] = 0; 
             DataToCtrlSlave[1] = 1; 
-            } // ABD - TWOF
-          else if(ix_average == 3){ 
+            } 
+          else if(ix_average == 3){ // ADD - THRF
             DataToCtrlSlave[0] = 0; 
             DataToCtrlSlave[1] = 2; 
-            } // ADD - THRF
-          else { 
+            } 
+          else { // NON - REST, ...
             DataToCtrlSlave[0] = 0; 
             DataToCtrlSlave[1] = 0; 
-            } // NON - REST, ...
+            } 
 
           // reset features frame
           feature_ix = 0;
 
-          // - Display current gesture on OLED screen
-          display.clearDisplay();
-          display.setCursor(0, 0);
-          display.println("C : Running program"); // LINE 1
-          for (size_t ix = 0; ix < EI_CLASSIFIER_LABEL_COUNT; ix++) { 
-            display.print(result.classification[ix].label);
-            display.print(": ");
-            display.println(String(static_cast<int>(result.classification[ix].value * 100))); // LINE 2-3-4-5-6
-          }
-          int AItime = result.timing.dsp + result.timing.classification + result.timing.anomaly;
-          display.print("AI time [ms]: ");
-          display.println(String(AItime)); // LINE 7
-          // display.display();
+          // Print current gesture to consol
+          // Serial.println("C : Running program");
+          // for (size_t ix = 0; ix < EI_CLASSIFIER_LABEL_COUNT; ix++) { 
+          //   Serial.print(result.classification[ix].label);
+          //   Serial.print(": ");
+          //   Serial.println(String(static_cast<int>(result.classification[ix].value * 100)));
+          // }
+          // int AItime = result.timing.dsp + result.timing.classification + result.timing.anomaly;
+          // Serial.print("AI time [ms]: ");
+          // Serial.println(String(AItime));
         }
 
         // - Send commands to Wrist-Slave
@@ -386,7 +396,7 @@ void loop() {
             DataToFdbckSlave[i] = 1;
           }
           else if ((FSRVal[i] < FSRthreshold) && (lastFSRVal[i] >= FSRthreshold)) {
-            DataToFdbckSlave[i] = 1;
+            DataToFdbckSlave[i] = 2;
           }
           else {
             DataToFdbckSlave[i] = 0;
@@ -398,17 +408,21 @@ void loop() {
         DataToFdbckSlave[3] = 0;
         for (unsigned int i = 0; i < ARR_SIZE(FSRVal); i++) {
           if (FSRVal[i] >= FSRthreshold) {
-            DataToFdbckSlave[3] += map(FSRVal[i], 0, 255, FdbckServoMin, FdbckServoMax);
+            DataToFdbckSlave[3] += FSRVal[i];
           }
           else {
-            DataToFdbckSlave[3] += FdbckServoMin;
+            DataToFdbckSlave[3] += 0;
           }
         }
-        DataToFdbckSlave[3] = DataToFdbckSlave[3] / ARR_SIZE(FSRVal);
+        DataToFdbckSlave[3] = DataToFdbckSlave[3] / ARR_SIZE(FSRVal); // Average value from 3x FSR sensors
+        DataToFdbckSlave[3] = map(DataToFdbckSlave[3], 0, 255, 0, 180); // transform to Servo angle
+        DataToFdbckSlave[3] = constrain(DataToFdbckSlave[3], FdbckServoMin, FdbckServoMax); // Limit to servo range of motion
+        ServoAverage.push(DataToFdbckSlave[3]); // Averge computed value over servêral iterations
+        DataToFdbckSlave[3] = ServoAverage.get();
 
         // - Send feedback to Feedback_Slave (target 100-1000Hz)
         //   - DataToFdbckSlave[] = {0, 0, 0, 90}; 
-        //     - DataToFdbckSlave[0,1,2] = PrxVib,MidVib,DisVib [0:novib - 1:vibrate] 
+        //     - DataToFdbckSlave[0,1,2] = PrxVib,MidVib,DisVib [0:novib - 1:vibrate-made-contact - 2:vibrate-lost-contact] 
         //     - DataToFdbckSlave[3] = Servo angle [FdbckServoMin -FdbckServoMax]
         Wire.beginTransmission(SLaddress_Fdbck);
         for (unsigned int i = 0; i < ARR_SIZE(DataToFdbckSlave); i++) {
@@ -416,22 +430,19 @@ void loop() {
         }
         Wire.endTransmission();
 
-        // calculate loop time
-        interval_ms = start_interval_ms - millis();
-          
-        // Start timer for loop time
+        // Calculate loop time
+        interval_ms = millis() - start_interval_ms;
+        // Start timer for next loop time
         start_interval_ms = millis();
         
-        // display.print("DataToCtrlSlave: ");
-        // display.print(DataToCtrlSlave[0]);
-        // display.print(" ");
-        // display.println(DataToCtrlSlave[1]);
-        display.print("ix_average: ");
-        display.println(ix_average);
-        // display loop time
-        // display.print("Loop time : ");                        
-        // display.println(String(interval_ms));  // LINE 8
-        display.display();
+        // Serial.print("DataToCtrlSlave: ");
+        // Serial.print(DataToCtrlSlave[0]);
+        // Serial.print(" ");
+        // Serial.println(DataToCtrlSlave[1]);
+        // Serial.print("ix_average: ");
+        // Serial.println(ix_average);
+        Serial.print("Loop time : ");                        
+        Serial.println(String(interval_ms));
       }
       break;
     default:
